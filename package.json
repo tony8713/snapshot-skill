@@ -7,6 +7,7 @@
     "vote": "bun run src/index.ts"
   },
   "dependencies": {
+    "@shutter-network/shutter-crypto": "^2.0.0",
     "@snapshot-labs/snapshot.js": "^0.14.20",
     "@snapshot-labs/sx": "^0.1.10",
     "dotenv": "^16.3.1",
