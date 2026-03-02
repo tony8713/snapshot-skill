@@ -1,6 +1,6 @@
-// Snapshot Skill - Vote on Snapshot X proposals using @snapshot-labs/sx
+// Snapshot Skill - Vote on Snapshot proposals using @snapshot-labs/sx
 import { Wallet } from 'ethers';
-import { clients, Choice } from '@snapshot-labs/sx';
+import { clients, Choice, offchainMainnet } from '@snapshot-labs/sx';
 import 'dotenv/config';
 
 const PRIVATE_KEY = process.env.SNAPSHOT_PRIVATE_KEY;
@@ -10,7 +10,6 @@ interface VoteInput {
   space: string;
   proposal: string;
   choice: string | number;
-  reason?: string;
 }
 
 interface VoteOutput {
@@ -22,7 +21,7 @@ interface VoteOutput {
 }
 
 /**
- * Cast a vote on a Snapshot X proposal
+ * Cast a vote on a Snapshot proposal
  */
 export async function vote(input: VoteInput): Promise<VoteOutput> {
   if (!PRIVATE_KEY) {
@@ -39,38 +38,61 @@ export async function vote(input: VoteInput): Promise<VoteOutput> {
     const wallet = new Wallet(PRIVATE_KEY);
     console.log(`Wallet: ${wallet.address}`);
 
-    // Convert choice to number (Choice: Against=0, For=1, Abstain=2)
+    // Convert choice to number
     let choiceNum: number;
     if (typeof choice === 'number') {
       choiceNum = choice;
     } else if (choice === 'for' || choice === 'yes') {
-      choiceNum = Choice.For; // 1
+      choiceNum = Choice.For;
     } else if (choice === 'against' || choice === 'no') {
-      choiceNum = Choice.Against; // 0
+      choiceNum = Choice.Against;
     } else if (choice === 'abstain') {
-      choiceNum = Choice.Abstain; // 2
+      choiceNum = Choice.Abstain;
     } else {
       choiceNum = parseInt(String(choice), 10) || Choice.For;
     }
 
-    // Create off-chain client for signing
-    const offchainClient = new clients.OffchainEthereumSig({
+    // Use offchainMainnet config for classic Snapshot
+    const client = new clients.OffchainEthereumSig({
+      networkConfig: offchainMainnet,
       rpc: ETH_RPC,
       ipfs: 'https://ipfs.fleek.co/ipfs/'
     });
 
+    // Sign the vote
+    const signResult = await client.vote({
+      signer: wallet,
+      data: {
+        space,
+        proposal,
+        choice: choiceNum,
+        type: 'single-choice',
+        privacy: 'none',
+        app: 'snapshot',
+        from: wallet.address,
+        reason: ''
+      }
+    });
+
+    console.log('Vote signed, now sending...');
+
+    // Send the vote
+    const sendResult = await client.send(signResult);
+    console.log('Vote submitted:', sendResult);
+
     return {
       ok: true,
-      message: `Vote prepared: ${choice} (${choiceNum}) on proposal ${proposal} in space ${space}`,
+      message: `Vote submitted successfully!`,
       wallet: wallet.address,
-      note: 'Full submission requires space authenticator config'
+      result: sendResult
     };
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error:', error.message || error);
     return { ok: false, error: String(error) };
   }
 }
 
-// Allow direct execution - read from stdin
+// Allow direct execution
 if (import.meta.main) {
   const stdin = await Bun.stdin.text();
   const args = stdin ? JSON.parse(stdin) : {};

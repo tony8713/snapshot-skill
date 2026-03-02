@@ -7,8 +7,10 @@
     "vote": "bun run src/index.ts"
   },
   "dependencies": {
+    "@snapshot-labs/snapshot.js": "^0.14.20",
     "@snapshot-labs/sx": "^0.1.10",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "ethers": "^5.7.2"
   },
   "devDependencies": {
     "@types/bun": "latest",
