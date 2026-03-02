@@ -3,4 +3,3 @@ node_modules/
 *.log
 bun.lockb
 .DS_Store
-package-lock.json
