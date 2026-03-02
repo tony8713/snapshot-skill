@@ -13,39 +13,28 @@ async function main() {
     process.exit(1);
   }
 
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'space',
-      message: 'Space ID (e.g., pistachiodao.eth):',
-      validate: (input) => input.length > 0
-    },
-    {
-      type: 'input',
-      name: 'proposal',
-      message: 'Proposal ID:',
-      validate: (input) => input.length > 0
-    },
-    {
-      type: 'list',
-      name: 'choice',
-      message: 'Choice:',
-      choices: ['for', 'against', 'abstain']
-    }
-  ]);
+  let space: string, proposal: string, choice: string;
+
+  // Check for CLI arguments
+  if (process.argv.length > 2) {
+    space = process.argv[2];
+    proposal = process.argv[3];
+    choice = process.argv[4];
+  } else {
+    const answers = await inquirer.prompt([
+      { type: 'input', name: 'space', message: 'Space ID:', validate: (i) => i.length > 0 },
+      { type: 'input', name: 'proposal', message: 'Proposal ID:', validate: (i) => i.length > 0 },
+      { type: 'list', name: 'choice', message: 'Choice:', choices: ['for', 'against', 'abstain'] }
+    ]);
+    space = answers.space;
+    proposal = answers.proposal;
+    choice = answers.choice;
+  }
 
   const wallet = new Wallet(PRIVATE_KEY);
-  console.log(`\nWallet: ${wallet.address}`);
+  console.log(`Wallet: ${wallet.address}`);
 
-  // Convert choice
-  let choiceNum: number;
-  if (answers.choice === 'for') {
-    choiceNum = Choice.For;
-  } else if (answers.choice === 'against') {
-    choiceNum = Choice.Against;
-  } else {
-    choiceNum = Choice.Abstain;
-  }
+  const choiceNum = choice === 'for' ? Choice.For : choice === 'against' ? Choice.Against : Choice.Abstain;
 
   const client = new clients.OffchainEthereumSig({
     networkConfig: offchainMainnet,
@@ -53,29 +42,15 @@ async function main() {
     ipfs: 'https://ipfs.fleek.co/ipfs/'
   });
 
-  console.log(`Voting ${answers.choice} on proposal ${answers.proposal} in ${answers.space}...`);
+  console.log(`Voting ${choice} on ${proposal} in ${space}...`);
 
   const result = await client.vote({
     signer: wallet,
-    data: {
-      space: answers.space,
-      proposal: answers.proposal,
-      choice: choiceNum,
-      type: 'single-choice',
-      privacy: 'none',
-      app: 'snapshot',
-      from: wallet.address,
-      reason: ''
-    }
+    data: { space, proposal, choice: choiceNum, type: 'single-choice', privacy: 'none', app: 'snapshot', from: wallet.address, reason: '' }
   });
 
   const sendResult = await client.send(result);
-  console.log('\n✅ Vote submitted successfully!');
-  console.log('Vote ID:', sendResult.id);
-  console.log('IPFS:', sendResult.ipfs);
+  console.log('✅ Vote submitted!', sendResult.id);
 }
 
-main().catch((error) => {
-  console.error('Error:', error.message);
-  process.exit(1);
-});
+main().catch((e) => { console.error('Error:', e.message); process.exit(1); });
