@@ -1,4 +1,5 @@
-// Snapshot Skill - Vote on Snapshot proposals using @snapshot-labs/sx
+#!/usr/bin/env bun
+import { Command } from 'commander';
 import { Wallet } from 'ethers';
 import { clients, Choice, offchainMainnet } from '@snapshot-labs/sx';
 import 'dotenv/config';
@@ -6,98 +7,73 @@ import 'dotenv/config';
 const PRIVATE_KEY = process.env.SNAPSHOT_PRIVATE_KEY;
 const ETH_RPC = process.env.ETHEREUM_RPC || 'https://rpc.ankr.com/eth';
 
-interface VoteInput {
-  space: string;
-  proposal: string;
-  choice: string | number;
-}
+const program = new Command();
 
-interface VoteOutput {
-  ok: boolean;
-  message?: string;
-  error?: string;
-  wallet?: string;
-  result?: unknown;
-}
+program
+  .name('snapshot-vote')
+  .description('Vote on Snapshot proposals using @snapshot-labs/sx')
+  .version('1.0.0');
 
-/**
- * Cast a vote on a Snapshot proposal
- */
-export async function vote(input: VoteInput): Promise<VoteOutput> {
-  if (!PRIVATE_KEY) {
-    return { ok: false, error: 'SNAPSHOT_PRIVATE_KEY not set in .env' };
-  }
-
-  const { space, proposal, choice } = input;
-
-  if (!space || !proposal || !choice) {
-    return { ok: false, error: 'Missing required fields: space, proposal, choice' };
-  }
-
-  try {
-    const wallet = new Wallet(PRIVATE_KEY);
-    console.log(`Wallet: ${wallet.address}`);
-
-    // Convert choice to number
-    let choiceNum: number;
-    if (typeof choice === 'number') {
-      choiceNum = choice;
-    } else if (choice === 'for' || choice === 'yes') {
-      choiceNum = Choice.For;
-    } else if (choice === 'against' || choice === 'no') {
-      choiceNum = Choice.Against;
-    } else if (choice === 'abstain') {
-      choiceNum = Choice.Abstain;
-    } else {
-      choiceNum = parseInt(String(choice), 10) || Choice.For;
+program
+  .command('vote')
+  .description('Cast a vote on a Snapshot proposal')
+  .requiredOption('-s, --space <space>', 'Space ID (e.g., snapshot.eth)')
+  .requiredOption('-p, --proposal <proposal>', 'Proposal ID')
+  .requiredOption('-c, --choice <choice>', 'Choice (for/against/abstain or number)')
+  .option('-r, --reason <reason>', 'Vote reason')
+  .action(async (options) => {
+    if (!PRIVATE_KEY) {
+      console.error('Error: SNAPSHOT_PRIVATE_KEY not set in .env');
+      process.exit(1);
     }
 
-    // Use offchainMainnet config for classic Snapshot
-    const client = new clients.OffchainEthereumSig({
-      networkConfig: offchainMainnet,
-      rpc: ETH_RPC,
-      ipfs: 'https://ipfs.fleek.co/ipfs/'
-    });
+    try {
+      const wallet = new Wallet(PRIVATE_KEY);
+      console.log(`Wallet: ${wallet.address}`);
 
-    // Sign the vote
-    const signResult = await client.vote({
-      signer: wallet,
-      data: {
-        space,
-        proposal,
-        choice: choiceNum,
-        type: 'single-choice',
-        privacy: 'none',
-        app: 'snapshot',
-        from: wallet.address,
-        reason: ''
+      // Convert choice to number
+      let choiceNum: number;
+      const choice = options.choice.toLowerCase();
+      if (choice === 'for' || choice === 'yes') {
+        choiceNum = Choice.For;
+      } else if (choice === 'against' || choice === 'no') {
+        choiceNum = Choice.Against;
+      } else if (choice === 'abstain') {
+        choiceNum = Choice.Abstain;
+      } else {
+        choiceNum = parseInt(options.choice, 10) || Choice.For;
       }
-    });
 
-    console.log('Vote signed, now sending...');
+      const client = new clients.OffchainEthereumSig({
+        networkConfig: offchainMainnet,
+        rpc: ETH_RPC,
+        ipfs: 'https://ipfs.fleek.co/ipfs/'
+      });
 
-    // Send the vote
-    const sendResult = await client.send(signResult);
-    console.log('Vote submitted:', sendResult);
+      console.log(`Voting ${options.choice} on proposal ${options.proposal} in ${options.space}...`);
 
-    return {
-      ok: true,
-      message: `Vote submitted successfully!`,
-      wallet: wallet.address,
-      result: sendResult
-    };
-  } catch (error: any) {
-    console.error('Error:', error.message || error);
-    return { ok: false, error: String(error) };
-  }
-}
+      const result = await client.vote({
+        signer: wallet,
+        data: {
+          space: options.space,
+          proposal: options.proposal,
+          choice: choiceNum,
+          type: 'single-choice',
+          privacy: 'none',
+          app: 'snapshot',
+          from: wallet.address,
+          reason: options.reason || ''
+        }
+      });
 
-// Allow direct execution
-if (import.meta.main) {
-  const stdin = await Bun.stdin.text();
-  const args = stdin ? JSON.parse(stdin) : {};
-  const result = await vote(args);
-  console.log(JSON.stringify(result, null, 2));
-}
+      const sendResult = await client.send(result);
+      console.log('Vote submitted successfully!');
+      console.log('Vote ID:', sendResult.id);
+      console.log('IPFS:', sendResult.ipfs);
+    } catch (error: any) {
+      console.error('Error:', error.message);
+      process.exit(1);
+    }
+  });
 
-export default vote;
+program.parse();

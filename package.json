@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "packageManager": "bun@1.1.0",
-  "scripts": {
-    "vote": "bun run src/index.ts"
+  "bin": {
+    "snapshot-vote": "./src/index.ts"
   },
   "dependencies": {
-    "@shutter-network/shutter-crypto": "^2.0.0",
-    "@snapshot-labs/snapshot.js": "^0.14.20",
     "@snapshot-labs/sx": "^0.1.10",
+    "commander": "^13.1.0",
     "dotenv": "^16.3.1",
     "ethers": "^5.7.2"
   },
